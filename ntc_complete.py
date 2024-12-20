@@ -69,9 +69,11 @@ class NTC(Bipole):
             case "beta_value":
                 return self.par['R0'] * np.exp(self.par['Beta'] * (1/temp_now - 1/self.par['T0']))
             case "steinhart_hart":
-                return self.par['R0'] * np.exp(self.par['Beta'] * (1/temp_now - 1/self.par['T0']))
+                x = 1/self.par['C'] * (self.par['A'] - 1/temp_now)
+                y = np.sqrt((self.par['B']/(3*self.par['C']))**3 + x**2/4)
+                return np.exp((y - x/2)**(1/3) - (y + x/2)**(1/3))
             case "polynomial":
-                return self.par['R0'] * np.exp(self.par['Beta'] * (1/temp_now - 1/self.par['T0']))
+                return self.par['R0'] * np.exp(np.polyval(self.par['DCBA'], 1/temp_now))
             case _:
                 raise ValueError("Unimplemented NTC model requested")
 
