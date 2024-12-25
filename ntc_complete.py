@@ -33,7 +33,7 @@ class Diode(Bipole):
         self.par['Eta'] = Eta
         self.par['Rth'] = Rth
         self.par['Model_type'] = Model_type
-        self.par['Eg'] = 1.12 * spc.eV # TODO: make it a parameter
+        self.par['Eg'] = 1.12 * spc.eV # TODO: make it a parameter to account for non-silicon devices
         self.T_base = T_base
     def __update_TSEP(self, Tx):
         # Compute temperature sensitive parameters according to the specified temperature
@@ -51,28 +51,30 @@ class Diode(Bipole):
             model = self.par['Model_type']
         match model:
             case "pure_exp":
-                return self.par['Eta'] * self.Vt * np.log(ix/self.par['Is'])
+                return self.par['Eta'] * self.Vt * np.log(ix/self.Is)
             case "negative_saturation":
-                return self.par['Eta'] * self.Vt * np.log(1.0 + ix/self.par['Is'])
+                return self.par['Eta'] * self.Vt * np.log(1.0 + ix/self.Is)
             case _:
                 raise ValueError("Unimplemented diode model requested")
     def g_model(self, vx, Tx=None, model="default"):
+        self.__update_TSEP(Tx)
         if model == "default":
             model = self.par['Model_type']
         match model:
             case "pure_exp":
-                return self.par['Is'] * np.exp(vx/self.par['Eta']/self.Vt)
+                return self.Is * np.exp(vx/self.par['Eta']/self.Vt)
             case "negative_saturation":
-                return self.par['Is'] * np.exp(vx/self.par['Eta']/self.Vt - 1.0)
+                return self.Is * np.exp(vx/self.par['Eta']/self.Vt - 1.0)
             case _:
                 raise ValueError("Unimplemented diode model requested")
 
 class NTC(Bipole):
-    def __init__(self, R0=10e3, Beta=3780, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Model_type='beta_value'):
+    def __init__(self, R0=10e3, Beta=3780, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth= 100, Model_type='beta_value'):
         super().__init__()
         self.par['R0'] = R0
         self.par['Beta'] = Beta
         self.par['T0'] = T0
+        self.par['Rth'] = Rth
         self.par['Model_type'] = Model_type
         self.T_base = T0
     def r_model(self, ix, Tx=None, model="default"):
@@ -101,6 +103,7 @@ class NTC_simulation:
     def __init__(self):
         self.Tmin_deg = -50
         self.Tmax_deg = 150
+        self.Tbase_deg = 25
         self.Nsim = 1001
         self.Vbias = 3.3
         self.Nj = 4
@@ -108,6 +111,7 @@ class NTC_simulation:
         self.ntc0 = NTC()
         self.Tx = np.linspace(self.Tmin_deg, self.Tmax_deg, self.Nsim, endpoint=True)
         self.Tx = spc.convert_temperature(self.Tx, 'Celsius', 'Kelvin')
+        self.Tbase = spc.convert_temperature(self.Tbase_deg, 'Celsius', 'Kelvin')
     def get_temperatures(self):
         return self.Tx
     def analysis_ideal_diode(self):
@@ -127,11 +131,31 @@ class NTC_simulation:
         ix = self.ntc0.g_model(self.Vbias, self.Tx)
         vx = self.Nj * self.diode0.r_model(ix)
         return (vx, ix) # output voltage and diodes current
-    def sim_divider(self):
+    def sim_divider(self, NTC_selfheat=False, Diode_selfheat=False):
         # Asymmetrical voltage divider
         # cir = lambda ix: Vbias - ntc0.r_model(ix, Tx) - Nj*diode0.r_model(ix) # KVL
-        cir = lambda vx: self.ntc0.g_model(self.Vbias - vx, self.Tx) - self.diode0.g_model(vx/self.Nj) # KCL
-        vx = spo.fsolve(cir, np.ones_like(self.Tx))
+        eq_circuit  = lambda vx, T_NTC, T_diode: self.ntc0.g_model(self.Vbias - vx, T_NTC) - self.diode0.g_model(vx/self.Nj, T_diode) # KCL
+        eq_ntc_sh   = lambda vx, T_NTC: self.ntc0.thermal_model(self.Vbias - vx, "voltage", T_NTC)
+        eq_diode_sh = lambda vx, T_diode: self.diode0.thermal_model(vx/self.Nj, "voltage", T_diode)
+        eqs_system  = lambda vx, T_NTC, T_diode: np.array([eq_circuit(vx, T_NTC, T_diode), eq_ntc_sh(vx, T_NTC), eq_diode_sh(vx, T_diode)])
+        if (not NTC_selfheat) and (not Diode_selfheat):
+            # Electric only (x: diode voltage)
+            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], T_meas, self.Tbase), 
+                                                    np.array([1.0, T_meas, self.Tbase])))(self.Tx)
+        elif NTC_selfheat and (not Diode_selfheat):
+            # NTC self-heating only (x: [diode voltage, NTC temperature])
+            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], x[1], self.Tbase), 
+                                                    (1.0, T_meas, self.Tbase)))(self.Tx)
+        elif (not NTC_selfheat) and Diode_selfheat:
+            # Diode self-heating only (x: [diode voltage, diode temperature])
+            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], T_meas, x[2]), 
+                                                    (1.0, T_meas, self.Tbase)))(self.Tx)
+        else:
+            # Self-heating on both diode and NTC
+            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], x[1], x[2]), 
+                                                    (1.0, T_meas, self.Tbase)))(self.Tx)
+
+        vx = x[:,0]
         ix = self.diode0.g_model(vx/self.Nj)
         return (vx, ix)
 
