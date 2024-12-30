@@ -13,7 +13,11 @@ class Bipole:
         pass
     def g_model(self, vx, Tx, model="default"):
         pass
-    def thermal_model(self, v_or_i, input, Tstart, Tend):
+    def thermal_model(self, v_or_i, input, Tstart, Tend, enable_selfheating=True):
+        if enable_selfheating:
+            Rth = self.par['Rth']
+        else:
+            Rth = 0
         if input == "current":
             ix = v_or_i
             p_loss = self.r_model(ix, Tend) * ix
@@ -24,7 +28,7 @@ class Bipole:
             raise ValueError("Invalid model requested")
         # We are not computing the temperature, but we are writing an equation that must be solved
         # Tstart is the known starting point, Tend is the supposed actual temperature
-        return Tstart + self.par['Rth'] * p_loss - Tend
+        return Tstart + Rth * p_loss - Tend
 
 class Diode(Bipole):
     def __init__(self, Is=1e-15, Eta=1, Rth=100, Model_type="pure_exp"):
@@ -127,37 +131,23 @@ class NTC_simulation:
         # Asymmetrical voltage divider
         # cir = lambda ix: Vbias - ntc0.r_model(ix, Tx) - Nj*diode0.r_model(ix) # KVL
         eq_circuit  = lambda vx, T_NTC, T_diode: self.ntc0.g_model(self.V_bias - vx, T_NTC) - self.diode0.g_model(vx/self.N_j, T_diode) # KCL
-        eq_ntc_sh   = lambda vx, T_NTC, T_NTC0: self.ntc0.thermal_model(self.V_bias - vx, "voltage", T_NTC0, T_NTC)
-        eq_diode_sh = lambda vx, T_diode, T_diode0: self.diode0.thermal_model(vx/self.N_j, "voltage", T_diode0, T_diode)
+        eq_ntc_sh   = lambda vx, T_NTC, T_NTC0: self.ntc0.thermal_model(self.V_bias - vx, "voltage", T_NTC0, T_NTC, NTC_selfheat)
+        eq_diode_sh = lambda vx, T_diode, T_diode0: self.diode0.thermal_model(vx/self.N_j, "voltage", T_diode0, T_diode, Diode_selfheat)
         eqs_system  = lambda vx, T_NTC, T_diode, T_NTC0, T_diode0: np.array([
             eq_circuit(vx, T_NTC, T_diode), 
             eq_ntc_sh(vx, T_NTC, T_NTC0), 
             eq_diode_sh(vx, T_diode, T_diode0)
             ])
-        if (not NTC_selfheat) and (not Diode_selfheat):
-            # Electric only (x: diode voltage)
-            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], T_meas, self.T_base, T_meas, self.T_base)[0], 1.0))(self.T_eval)
-            vx = x
-            T_NTC = self.T_eval * np.ones_like(vx)
-            T_diode = self.T_base * np.ones_like(vx)
-        elif NTC_selfheat and (not Diode_selfheat):
-            # NTC self-heating only (x: [diode voltage, NTC temperature])
-            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], x[1], self.T_base, T_meas, self.T_base)[[0, 1]], [1.0, T_meas]), signature='()->(2)')(self.T_eval)
-            vx = x[:,0]
-            T_NTC = x[:,1]
-            T_diode = self.T_base * np.ones_like(vx)
-        elif (not NTC_selfheat) and Diode_selfheat:
-            # Diode self-heating only (x: [diode voltage, diode temperature])
-            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], T_meas, x[1], T_meas, self.T_base)[[0, 2]], [1.0, self.T_base]), signature='()->(2)')(self.T_eval)
-            vx = x[:,0]
-            T_NTC = self.T_eval * np.ones_like(vx)
-            T_diode = x[:,1]
-        else:
-            # Self-heating on both diode and NTC
-            x = np.vectorize(lambda T_meas: spo.fsolve(lambda x: eqs_system(x[0], x[1], x[2], T_meas, self.T_base), [1.0, T_meas, self.T_base], diag=[0.5, 300.0, 300.0]), signature='()->(3)')(self.T_eval)
-            vx = x[:,0]
-            T_NTC = x[:,1]
-            T_diode = x[:,2]
+        x = np.vectorize(
+            lambda T_meas: spo.fsolve(
+                lambda x: eqs_system(
+                    x[0], x[1], x[2], T_meas, self.T_base), 
+                [0.5*self.N_j, T_meas, self.T_base], 
+                diag=[0.5*self.N_j, T_meas, self.T_base]), 
+            signature='()->(3)')(self.T_eval)
+        vx = x[:,0]
+        T_NTC = x[:,1]
+        T_diode = x[:,2]
         ix = self.diode0.g_model(vx/self.N_j, T_diode)
         return (vx, ix, T_NTC, T_diode)
 
