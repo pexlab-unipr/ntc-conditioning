@@ -6,6 +6,34 @@ import scipy.optimize as spo
 import scipy.special as sps
 import matplotlib.pyplot as plt
 
+def curvature(x, y):
+    # Compute the curvature of a curve defined by x and y
+    yp = np.gradient(y, x)
+    ypp = np.gradient(yp, x)
+    return np.abs(ypp) / (1 + yp**2)**(3/2)
+
+def curvature2(x, y):
+    # Compute the first derivatives
+    dx = np.diff(x, prepend=x[0])
+    dy = np.diff(y, prepend=y[0])
+    yp = dy / dx
+    # Compute the second derivatives
+    dyp = np.diff(yp, prepend=yp[0])
+    ypp = dyp / dx
+    # Compute the curvature
+    curvature = np.abs(ypp) / (1 + yp**2)**(3/2)
+    return curvature
+
+def fake_curvature(x, y):
+    # Not a real curvature, but a measure of the slope of the curve
+    yp = np.diff(y, axis=0) / np.diff(x, axis=0) #np.gradient(y, x)
+    return yp
+
+def multi_curvature(x, y):
+    xb, yb = np.broadcast_arrays(x, y[:,np.newaxis])
+    res = np.array([curvature2(xb[:,i], yb[:,i]) for i in range(yb.shape[1])])
+    return res.T
+
 class Bipole:
     def __init__(self):
         self.par = {}
@@ -100,7 +128,7 @@ class NTC_simulation:
         self.T_min_deg = -50
         self.T_max_deg = 150
         self.T_base_deg = 25
-        self.N_sim = 1001
+        self.N_sim = 101
         self.V_bias = 3.3
         self.N_j = 4
         self.diode0 = Diode(Is = 25e-9, Eta = 1.6, Model_type="negative_saturation")
@@ -184,6 +212,15 @@ plt.plot(Tx_deg, T_ntc[:,1] - Tx, label='NTC')
 plt.plot(Tx_deg, T_diode[:,1] - mysim.T_base, label='diode')
 plt.xlabel('Measured temperature (°C)')
 plt.ylabel('Component overtemperature (K)')
+plt.legend()
+plt.grid()
+plt.show(block=False)
+
+plt.figure(4)
+# plt.plot(v_out[0:-1,:], fake_curvature(v_out, 1/Tx[:,np.newaxis]), label=['ideal diode (sim)', 'divider (sim)', 'ideal diode (model)', 'divider (model)'])
+plt.plot(v_out, multi_curvature(v_out, 1/Tx), label=['ideal diode (sim)', 'divider (sim)', 'ideal diode (model)', 'divider (model)'])
+plt.xlabel('Output voltage (V)')
+plt.ylabel('Curvature')
 plt.legend()
 plt.grid()
 plt.show(block=True)
