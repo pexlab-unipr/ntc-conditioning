@@ -180,12 +180,39 @@ class NTC_simulation:
         ix = self.diode.g_model(vx/self.N_j, T_diode)
         return (vx, ix, T_NTC, T_diode)
 
+class NTC_characterization:
+    def __init__(self, ntc):
+        self.ntc = ntc
+        self.I_max = 1000
+        self.N_sim = 1001
+        self.i = np.logspace(-6, np.log10(self.I_max), self.N_sim, endpoint=True)
+    def simulate(self, T_meas):
+        eq = lambda Tx, ix: self.ntc.thermal_model(ix, "current", T_meas, Tx, enable_selfheating=True)
+        T_end = np.vectorize(
+            lambda ix: spo.fsolve(eq, T_meas, args=(ix,)))(self.i)
+        R_out = self.ntc.r_value(T_end)
+        v_out = self.ntc.r_model(self.i, T_end)
+        return (v_out, self.i, R_out, T_end)
+    def analyze(self, T_meas):
+        v_out = self.ntc.r_model(self.i, T_meas)
+        R_m = self.ntc.r_value(T_meas)
+        I_m = np.sqrt(T_meas**2/(self.ntc.par['Beta'] * self.ntc.par['Rth'] * R_m))
+        V_m = T_meas/2 * np.sqrt(R_m/(self.ntc.par['Beta'] * self.ntc.par['Rth']))
+        return (v_out, self.i, R_m, I_m, V_m)
+    def attempt(self, T_meas):
+        # Opening the loop works worse than linearizing the NTC model
+        T_end = T_meas + self.ntc.par['Rth'] * self.i**2 * self.ntc.r_value(T_meas)
+        R_out = self.ntc.r_value(T_end)
+        v_out = self.ntc.r_model(self.i, T_end)
+        return (v_out, self.i, R_out, T_end)
+
 # Simulation
 diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350, Model_type="negative_saturation")
 diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93, Model_type="negative_saturation")
 diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160, Model_type="negative_saturation")
 ntc_B57703M_10k = NTC()
 mysim = NTC_simulation(3.3, 1, diode_BC817, ntc_B57703M_10k, name="BC817")
+mychar = NTC_characterization(ntc_B57703M_10k)
 Tx, Tx_deg = mysim.get_temperatures()
 v_out = np.empty((mysim.N_sim, 4))
 i_ntc = np.empty_like(v_out)
@@ -195,6 +222,9 @@ v_out[:,0], i_ntc[:,0] = mysim.sim_ideal_diode()
 v_out[:,1], i_ntc[:,1], T_ntc[:,1], T_diode[:,1] = mysim.sim_divider(NTC_selfheat=True, Diode_selfheat=True)
 v_out[:,2], i_ntc[:,2] = mysim.analysis_ideal_diode()
 v_out[:,3], i_ntc[:,3] = mysim.analysis_divider()
+v_n, i_n, R_n, T_n = mychar.simulate(400)
+v_m, i_m, R_m, I_m, V_m = mychar.analyze(400)
+v_a, i_a, R_a, T_a = mychar.attempt(400)
 
 # Results
 plt.figure(1)
@@ -228,6 +258,37 @@ plt.xlabel('Output voltage (V)')
 plt.ylabel('Curvature')
 plt.legend()
 plt.grid()
+plt.show(block=False)
+
+plt.figure(5)
+plt.subplot(3, 1, 1)
+plt.loglog(i_n * 1e3, v_n)
+plt.loglog(i_m * 1e3, v_m)
+plt.loglog(I_m * 1e3, V_m, 'x')
+plt.loglog(i_a * 1e3, v_a)
+plt.xlabel('Test current (mA)')
+plt.ylabel('NTC voltage (V)')
+plt.grid()
+plt.subplot(3, 1, 2)
+plt.loglog(i_n * 1e3, T_n)
+plt.xlabel('Test current (mA)')
+plt.ylabel('NTC temperature (K)')
+plt.grid()
+plt.subplot(3, 1, 3)
+plt.loglog(i_n * 1e3, R_n)
+plt.loglog(i_n * 1e3, ntc_B57703M_10k.r_value(400) * np.ones_like(i_n))
+plt.loglog(i_n * 1e3, ntc_B57703M_10k.r_value(1e6) * np.ones_like(i_n))
+plt.xlabel('Test current (mA)')
+plt.ylabel('NTC resistance (ohm)')
+plt.grid()
+plt.show(block=False)
+
+x = np.log(i_n)
+y = np.log(v_n)
+y = np.diff(y) / np.diff(x)
+x = x[0:-1]
+plt.figure(6)
+plt.plot(x, y)
 plt.show(block=True)
 
 print('Ciao')
