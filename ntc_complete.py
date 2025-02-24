@@ -141,7 +141,6 @@ class NTC_simulation:
         self.N_j = N_j
         self.diode = diode
         self.ntc = ntc
-        self.res_cal = Resistor(R0=R_cal[0])
         self.R_cal = R_cal
         self.g_cal = np.log(R_cal/self.ntc.par['R0'])
         self.v_cal = np.empty_like(self.R_cal)
@@ -149,6 +148,10 @@ class NTC_simulation:
         self.T_eval = np.linspace(self.T_min_deg, self.T_max_deg, self.N_sim, endpoint=True)
         self.T_eval = spc.convert_temperature(self.T_eval, 'Celsius', 'Kelvin')
         self.T_base = spc.convert_temperature(self.T_base_deg, 'Celsius', 'Kelvin')
+        self.calibrate()
+    def calibrate(self):
+        for ii_rcal in range(len(self.R_cal)):
+            self.v_cal[ii_rcal] = self.sim_divider(Resistor_selfheat=True, Diode_selfheat=True, res=Resistor(R0=self.R_cal[ii_rcal]), temp=self.T_base)
     def get_temperatures(self):
         return (self.T_eval, spc.convert_temperature(self.T_eval, 'Kelvin', 'Celsius'))
     def analysis_ideal_diode(self):
@@ -174,17 +177,19 @@ class NTC_simulation:
         Rx = self.ntc.r_value(self.T_eval)
         g = np.log(Rx/self.ntc.par['R0'])
         return (vx, ix, Rx, g)
-    def sim_divider(self, Resistor_selfheat=False, Diode_selfheat=False, res=None):
+    def sim_divider(self, Resistor_selfheat=False, Diode_selfheat=False, res=None, temp=None):
         # Asymmetrical voltage divider
         # cir = lambda ix: Vbias - ntc0.r_model(ix, Tx) - Nj*diode0.r_model(ix) # KVL
         if res is None:
             res = self.ntc
+        if temp is None:
+            temp = self.T_eval
         eq_circuit  = lambda vx, T_res, T_diode: res.g_model(self.V_bias - vx, T_res) - self.diode.g_model(vx/self.N_j, T_diode) # KCL
-        eq_ntc_sh   = lambda vx, T_res, T_res0: res.thermal_model(self.V_bias - vx, "voltage", T_res0, T_res, Resistor_selfheat)
+        eq_res_sh   = lambda vx, T_res, T_res0: res.thermal_model(self.V_bias - vx, "voltage", T_res0, T_res, Resistor_selfheat)
         eq_diode_sh = lambda vx, T_diode, T_diode0: self.diode.thermal_model(vx/self.N_j, "voltage", T_diode0, T_diode, Diode_selfheat)
         eqs_system  = lambda vx, T_res, T_diode, T_res0, T_diode0: np.array([
             eq_circuit(vx, T_res, T_diode), 
-            eq_ntc_sh(vx, T_res, T_res0), 
+            eq_res_sh(vx, T_res, T_res0), 
             eq_diode_sh(vx, T_diode, T_diode0)
             ])
         x = np.vectorize(
@@ -193,7 +198,7 @@ class NTC_simulation:
                     x[0], x[1], x[2], T_meas, self.T_base), 
                 [self.N_j, T_meas, self.T_base], 
                 diag=[self.N_j, T_meas, self.T_base]), 
-            signature='()->(3)')(self.T_eval)
+            signature='()->(3)')(temp)
         vx = x[:,0]
         T_res = x[:,1]
         T_diode = x[:,2]
@@ -246,9 +251,9 @@ v_out[:,0], i_ntc[:,0], Rx[:,0], g[:,0] = mysim.sim_ideal_diode()
 v_out[:,1], i_ntc[:,1], T_ntc[:,1], T_diode[:,1], Rx[:,1], g[:,1] = mysim.sim_divider(Resistor_selfheat=True, Diode_selfheat=True)
 v_out[:,2], i_ntc[:,2], Rx[:,2], g[:,2] = mysim.analysis_ideal_diode()
 v_out[:,3], i_ntc[:,3], Rx[:,3], g[:,3] = mysim.analysis_divider()
-v_n, i_n, R_n, T_n = mychar.simulate(400)
-v_m, i_m, R_m, I_m, V_m = mychar.analyze(400)
-v_a, i_a, R_a, T_a = mychar.attempt(400)
+# v_n, i_n, R_n, T_n = mychar.simulate(400)
+# v_m, i_m, R_m, I_m, V_m = mychar.analyze(400)
+# v_a, i_a, R_a, T_a = mychar.attempt(400)
 
 # Results
 plt.figure(1)
