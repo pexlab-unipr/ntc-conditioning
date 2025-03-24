@@ -132,7 +132,7 @@ class NTC(Resistor):
 
 # Simulation parameters
 class NTC_simulation:
-    def __init__(self, V_bias, N_j, diode, ntc, R_cal=np.array([1e3, 1e3]), name="NTC_simulation"):
+    def __init__(self, V_bias, N_j, diode, ntc, R_cal=np.array([1e3, 10e3]), name="NTC_simulation"):
         self.T_min_deg = -50
         self.T_max_deg = 150
         self.T_base_deg = 25
@@ -151,7 +151,7 @@ class NTC_simulation:
         self.calibrate()
     def calibrate(self):
         for ii_rcal in range(len(self.R_cal)):
-            self.v_cal[ii_rcal] = self.sim_divider(Resistor_selfheat=True, Diode_selfheat=True, res=Resistor(R0=self.R_cal[ii_rcal]), temp=self.T_base)
+            self.v_cal[ii_rcal], *_ = self.sim_divider(Resistor_selfheat=True, Diode_selfheat=True, res=Resistor(R0=self.R_cal[ii_rcal]), temp=self.T_base)
     def get_temperatures(self):
         return (self.T_eval, spc.convert_temperature(self.T_eval, 'Kelvin', 'Celsius'))
     def analysis_ideal_diode(self):
@@ -199,6 +199,9 @@ class NTC_simulation:
                 [self.N_j, T_meas, self.T_base], 
                 diag=[self.N_j, T_meas, self.T_base]), 
             signature='()->(3)')(temp)
+        # Transform array of dimension 3 in bidimentional to avoid errors during calibration
+        if len(x.shape) == 1:
+            x = x[np.newaxis,:]
         vx = x[:,0]
         T_res = x[:,1]
         T_diode = x[:,2]
@@ -251,6 +254,8 @@ v_out[:,0], i_ntc[:,0], Rx[:,0], g[:,0] = mysim.sim_ideal_diode()
 v_out[:,1], i_ntc[:,1], T_ntc[:,1], T_diode[:,1], Rx[:,1], g[:,1] = mysim.sim_divider(Resistor_selfheat=True, Diode_selfheat=True)
 v_out[:,2], i_ntc[:,2], Rx[:,2], g[:,2] = mysim.analysis_ideal_diode()
 v_out[:,3], i_ntc[:,3], Rx[:,3], g[:,3] = mysim.analysis_divider()
+asd = mysim.g_cal[0] + (mysim.g_cal[1] - mysim.g_cal[0]) * (mysim.v_cal[0] - v_out[:,1])/(mysim.v_cal[0] - mysim.v_cal[1])
+qwe = np.polyfit(asd, g[:,1], 3)
 # v_n, i_n, R_n, T_n = mychar.simulate(400)
 # v_m, i_m, R_m, I_m, V_m = mychar.analyze(400)
 # v_a, i_a, R_a, T_a = mychar.attempt(400)
@@ -291,11 +296,21 @@ plt.show(block=False)
 
 plt.figure(5)
 plt.plot(v_out, g, label=['ideal diode (sim)', 'divider (sim)', 'ideal diode (model)', 'divider (model)'])
+plt.plot(v_out[:,1], asd, label='simplified')
 plt.xlabel('Output voltage (V)')
 plt.ylabel('Real normalized resistance g (1)')
 plt.legend()
 plt.grid()
+plt.show(block=False)
+
+plt.figure(6)
+plt.plot(asd, g[:,1], asd, np.polyval(qwe, asd))
+plt.xlabel('Estimated normalized resistance g (1)')
+plt.ylabel('Real normalized resistance g (1)')
+plt.legend()
+plt.grid()
 plt.show(block=True)
+
 
 '''
 plt.figure(5)
@@ -331,3 +346,4 @@ plt.show(block=True)
 '''
 
 print('Ciao')
+print(qwe)
