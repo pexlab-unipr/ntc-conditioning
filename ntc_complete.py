@@ -4,6 +4,7 @@ import numpy as np
 import scipy.constants as spc
 import scipy.optimize as spo
 import scipy.special as sps
+import scipy.io as spio
 import matplotlib.pyplot as plt
 
 def curvature(x, y):
@@ -241,7 +242,7 @@ diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350, Model_type="negative_sa
 diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93, Model_type="negative_saturation")
 diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160, Model_type="negative_saturation")
 ntc_B57703M_10k = NTC()
-mysim = NTC_simulation(3.3, 1, diode_BC817, ntc_B57703M_10k, name="BC817")
+mysim = NTC_simulation(3.3, 6, diode_BC817, ntc_B57703M_10k, name="BC817")
 mychar = NTC_characterization(ntc_B57703M_10k)
 Tx, Tx_deg = mysim.get_temperatures()
 v_out = np.empty((mysim.N_sim, 4))
@@ -260,6 +261,37 @@ qwe = np.polyfit(asd, g[:,1], 3)
 # v_m, i_m, R_m, I_m, V_m = mychar.analyze(400)
 # v_a, i_a, R_a, T_a = mychar.attempt(400)
 
+data = spio.loadmat('Dati_NTC/asdf.mat')
+Ron_min = max(min(data['Ron'][:,0]), min(data['Ron'][:,3]))
+Ron_max = min(max(data['Ron'][:,0]), max(data['Ron'][:,3]))
+rons = np.linspace(Ron_min, Ron_max, 1001)
+Ts_ref = np.interp(rons, data['Ron'][:,3], data['T'][:,3])
+Ts_out = np.interp(rons, data['Ron'][:,0], data['T'][:,0])
+T_rms_error = np.sqrt(np.mean((Ts_ref - Ts_out)**2))
+print('RMS error: ', T_rms_error)
+
+
+plt.figure(8)
+plt.gcf().set_size_inches(4, 3)
+plt.plot(data['T'][:,(0, 3)], 1e3*data['Ron'][:,(0, 3)], label=['proposed sensing', 'thermal chamber'])
+plt.xlabel('Junction temperature ($^{\circ}C$)')
+plt.ylabel('On-state resistance ($m\Omega$)')
+plt.legend()
+plt.grid()
+plt.savefig('ron.pdf', bbox_inches='tight')
+plt.show(block=False)
+
+plt.figure(9)
+plt.gcf().set_size_inches(4, 3)
+plt.plot(Ts_ref, Ts_out, '-', label='experimental data')
+plt.plot(Ts_ref, Ts_ref, '--', label='ideal reference')
+plt.xlabel('Ambient temperature ($^{\circ}C$)')
+plt.ylabel('Sensed temperature ($^{\circ}C$)')
+plt.legend()
+plt.grid()
+plt.savefig('temp_comparison.pdf', bbox_inches='tight')
+plt.show(block=False)
+
 # Results
 plt.figure(1)
 plt.plot(v_out, 1/Tx, label=['ideal diode (sim)', 'divider (sim)', 'ideal diode (model)', 'divider (model)'])
@@ -277,12 +309,14 @@ plt.grid()
 plt.show(block=False)
 
 plt.figure(3)
-plt.plot(Tx_deg, T_ntc[:,1] - Tx, label='NTC')
-plt.plot(Tx_deg, T_diode[:,1] - mysim.T_base, label='diode')
+plt.gcf().set_size_inches(4, 3)
+plt.plot(Tx_deg, 1e3*(T_ntc[:,1] - Tx), label='NTC')
+plt.plot(Tx_deg, 1e3*(T_diode[:,1] - mysim.T_base), label='BJT')
 plt.xlabel('Measured temperature (°C)')
-plt.ylabel('Component overtemperature (K)')
+plt.ylabel('Component overtemperature (mK)')
 plt.legend()
 plt.grid()
+plt.savefig('overtemp_N6.pdf', bbox_inches='tight')
 plt.show(block=False)
 
 plt.figure(4)
@@ -309,8 +343,18 @@ plt.xlabel('Estimated normalized resistance g (1)')
 plt.ylabel('Real normalized resistance g (1)')
 plt.legend()
 plt.grid()
-plt.show(block=True)
+plt.show(block=False)
 
+plt.figure(7)
+plt.gcf().set_size_inches(4, 3)
+plt.plot(v_out[:,1], g[:,1], label='simulation')
+plt.plot(v_out[:,1], asd, label='simplified')
+plt.xlabel('Output voltage $v_x$ (V)')
+plt.ylabel('Normalized log resistance $g$ (1)')
+plt.legend()
+plt.grid()
+plt.savefig('characteristics_N1.pdf', bbox_inches='tight')
+plt.show(block=False)
 
 '''
 plt.figure(5)
