@@ -242,7 +242,7 @@ diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350, Model_type="negative_sa
 diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93, Model_type="negative_saturation")
 diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160, Model_type="negative_saturation")
 ntc_B57703M_10k = NTC()
-mysim = NTC_simulation(3.3, 6, diode_BC817, ntc_B57703M_10k, name="BC817")
+mysim = NTC_simulation(3.3, 4, diode_BC817, ntc_B57703M_10k, name="BC817")
 mychar = NTC_characterization(ntc_B57703M_10k)
 Tx, Tx_deg = mysim.get_temperatures()
 v_out = np.empty((mysim.N_sim, 4))
@@ -354,7 +354,7 @@ plt.ylabel('Normalized log resistance $g$ (1)')
 plt.legend()
 plt.grid()
 plt.savefig('characteristics_N1.pdf', bbox_inches='tight')
-plt.show(block=False)
+plt.show(block=True)
 
 '''
 plt.figure(5)
