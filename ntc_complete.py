@@ -1,6 +1,8 @@
 # NTC overall simulation and study
 
 import numpy as np
+import numpy.polynomial.polynomial as npp
+import pandas as pd
 import scipy.constants as spc
 import scipy.optimize as spo
 import scipy.special as sps
@@ -42,8 +44,8 @@ class Bipole:
         pass
     def g_model(self, vx, Tx, model="default"):
         pass
-    def thermal_model(self, v_or_i, input, Tstart, Tend, enable_selfheating=True):
-        if enable_selfheating:
+    def thermal_model(self, v_or_i, input, Tstart, Tend, selfheating=True):
+        if selfheating:
             Rth = self.par['Rth']
         else:
             Rth = 0
@@ -60,13 +62,12 @@ class Bipole:
         return Tstart + Rth * p_loss - Tend
 
 class Resistor(Bipole):
-    def __init__(self, R0, Rth=0, TCR=300e-6, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Model_type='default'):
+    def __init__(self, R0, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=0, TCR=300e-6):
         super().__init__()
         self.par['R0'] = R0
-        self.par['Rth'] = Rth
         self.par['T0'] = T0
+        self.par['Rth'] = Rth
         self.par['TCR'] = TCR
-        self.par['Model_type'] = Model_type
         # "model" parameter is completely neglected in this case
     def r_model(self, ix, Tx, model="default"):
         return self.r_value(Tx, model) * ix
@@ -76,13 +77,17 @@ class Resistor(Bipole):
         return self.par['R0'] * (1 + self.par['TCR'] * (Tx - self.par['T0']))
     
 class Diode(Bipole):
-    def __init__(self, Is=1e-15, Eta=1, Rth=100, Model_type="pure_exp"):
+    def __init__(self, Is=1e-15, Eta=1, Rth=100):
         super().__init__()
         self.par['Is'] = Is
         self.par['Eta'] = Eta
         self.par['Rth'] = Rth
-        self.par['Model_type'] = Model_type
         self.par['Eg'] = 1.12 * spc.eV # TODO: make it a parameter to account for non-silicon devices
+    def model_default(self, model):
+        # Default model is negative saturation
+        if model == "default":
+            model = "negative_saturation"
+        return model
     # Compute temperature sensitive parameters according to the specified temperature
     def Vt(self, Tx):
         return spc.Boltzmann * Tx/spc.e
@@ -90,10 +95,7 @@ class Diode(Bipole):
         return self.par['Is'] * np.exp(-self.par['Eg']/spc.Boltzmann * (1/Tx - 1/300)) # TODO parameterize reference temperature for given saturation current
     def r_model(self, ix, Tx, model="default"):
         # Implement various models
-        # default can be overriden by the user to reuse expressions
-        # Otherwise set by Model_type
-        if model == "default":
-            model = self.par['Model_type']
+        model = self.model_default(model)
         match model:
             case "pure_exp":
                 return self.par['Eta'] * self.Vt(Tx) * np.log(ix/self.Is(Tx))
@@ -102,8 +104,7 @@ class Diode(Bipole):
             case _:
                 raise ValueError("Unimplemented diode model requested")
     def g_model(self, vx, Tx, model="default"):
-        if model == "default":
-            model = self.par['Model_type']
+        model = self.model_default(model)
         match model:
             case "pure_exp":
                 return self.Is(Tx) * np.exp(vx/self.par['Eta']/self.Vt(Tx))
@@ -113,12 +114,47 @@ class Diode(Bipole):
                 raise ValueError("Unimplemented diode model requested")
 
 class NTC(Resistor):
-    def __init__(self, R0=10e3, Beta=3988, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=333, Model_type='beta_value'):
-        super().__init__(R0=R0, T0=T0, Rth=Rth, Model_type=Model_type)
-        self.par['Beta'] = Beta
-    def r_value(self, Tx, model="default"):
+    def __init__(self, R0, T0, Rth, Beta=None, Poly=None, Table=None, Range=None):
+        super().__init__(R0=R0, T0=T0, Rth=Rth, TCR=0)
+        if Beta is not None:
+            self.par['Beta'] = Beta
+        elif Poly is not None:
+            self.par['DCBA'] = Poly
+        elif Table is not None:
+            data = pd.read_csv(Table, delimiter=';', names=("T_deg", "r"))
+            data['T'] = spc.convert_temperature(data['T_deg'], 'Celsius', 'Kelvin')
+            data['recT'] = 1/data['T']
+            data['g'] = np.log(data['r'])
+            # TODO consider the range of the table on which to compute the coefficients
+            # Determine Beta model coefficients
+            par = npp.polyfit(data['recT'] - 1/self.par['T0'], data['g'], 1)
+            self.par['Beta'] = par[1]
+            asd = par[0]
+            # TODO find a robust way to determine Steinhart-Hart coefficients
+
+            # Determine the coefficients of the polynomial model
+            self.par['DCBA'] = npp.polyfit(data['recT'], data['g'], 3)
+
+            plt.figure(18)
+            plt.plot(data['T_deg'], data['g'], label="Datasheet")
+            plt.plot(data['T_deg'], np.log(self.r_value(data['T'], model="beta_value")/self.par['R0']), label="Beta model")
+            plt.plot(data['T_deg'], np.log(self.r_value(data['T'], model="polynomial")/self.par['R0']), label="Polynomial model")
+            plt.xlabel('Temperature ($^{\circ}C$)')
+            plt.ylabel('Normalized log resistance (1)')
+            plt.legend()
+            plt.grid()
+            plt.show()
+
+            print(data)
+        else:
+            raise TypeError("At least one of Beta, Poly or Table must be specified")
+    def model_default(self, model):
+        # Default model is negative saturation
         if model == "default":
-            model = self.par['Model_type']
+            model = "beta_value"
+        return model
+    def r_value(self, Tx, model="default"):
+        model = self.model_default(model)
         match model:
             case "beta_value":
                 return self.par['R0'] * np.exp(self.par['Beta'] * (1/Tx - 1/self.par['T0']))
@@ -127,7 +163,7 @@ class NTC(Resistor):
                 y = np.sqrt((self.par['B']/(3*self.par['C']))**3 + x**2/4)
                 return np.exp((y - x/2)**(1/3) - (y + x/2)**(1/3))
             case "polynomial":
-                return self.par['R0'] * np.exp(np.polyval(self.par['DCBA'], 1/Tx))
+                return self.par['R0'] * np.exp(npp.polyval(1/Tx, self.par['DCBA']))
             case _:
                 raise ValueError("Unimplemented NTC model requested")
 
@@ -238,10 +274,11 @@ class NTC_characterization:
         return (v_out, self.i, R_out, T_end)
 
 # Simulation
-diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350, Model_type="negative_saturation")
-diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93, Model_type="negative_saturation")
-diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160, Model_type="negative_saturation")
-ntc_B57703M_10k = NTC()
+diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350)
+diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93)
+diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160)
+# ntc_B57703M_10k = NTC(R0=10e3, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=333, Beta=3988)
+ntc_B57703M_10k = NTC(R0=10e3, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=333, Table="./Dati_NTC/temperature_data.csv")
 mysim = NTC_simulation(3.3, 4, diode_BC817, ntc_B57703M_10k, name="BC817")
 mychar = NTC_characterization(ntc_B57703M_10k)
 Tx, Tx_deg = mysim.get_temperatures()
