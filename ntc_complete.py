@@ -83,6 +83,7 @@ class Diode(Bipole):
         self.par['Eta'] = Eta
         self.par['Rth'] = Rth
         self.par['Eg'] = 1.12 * spc.eV # TODO: make it a parameter to account for non-silicon devices
+        self.par['T0'] = 300 # TODO: make it a parameter
     def model_default(self, model):
         # Default model is negative saturation
         if model == "default":
@@ -92,7 +93,7 @@ class Diode(Bipole):
     def Vt(self, Tx):
         return spc.Boltzmann * Tx/spc.e
     def Is(self, Tx):
-        return self.par['Is'] * np.exp(-self.par['Eg']/spc.Boltzmann * (1/Tx - 1/300)) # TODO parameterize reference temperature for given saturation current
+        return self.par['Is'] * np.exp(-self.par['Eg']/spc.Boltzmann * (1/Tx - 1/self.par['T0'])) # TODO parameterize reference temperature for given saturation current
     def r_model(self, ix, Tx, model="default"):
         # Implement various models
         model = self.model_default(model)
@@ -135,7 +136,7 @@ class NTC(Resistor):
             # Determine the coefficients of the polynomial model
             self.par['DCBA'] = npp.polyfit(data['recT'], data['g'], 3)
 
-            plt.figure(18)
+            plt.figure()
             plt.plot(data['T_deg'], data['g'], label="Datasheet")
             plt.plot(data['T_deg'], np.log(self.r_value(data['T'], model="beta_value")/self.par['R0']), label="Beta model")
             plt.plot(data['T_deg'], np.log(self.r_value(data['T'], model="polynomial")/self.par['R0']), label="Polynomial model")
@@ -151,7 +152,7 @@ class NTC(Resistor):
     def model_default(self, model):
         # Default model is negative saturation
         if model == "default":
-            model = "beta_value"
+            model = "polynomial"
         return model
     def r_value(self, Tx, model="default"):
         model = self.model_default(model)
