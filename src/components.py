@@ -113,9 +113,7 @@ class NTC(Resistor):
             plt.ylabel('Normalized log resistance (1)')
             plt.legend()
             plt.grid()
-            plt.show()
-
-            print(data)
+            plt.show(block=False)
         else:
             raise TypeError("At least one of Beta, Poly or Table must be specified")
     def model_default(self, model):

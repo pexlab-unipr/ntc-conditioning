@@ -1,25 +1,57 @@
 # NTC overall simulation and study
 
 from components import Diode, NTC
-from ntccond import NTC_simulation
-from ntcchar import NTC_characterization
+from ntccond import NTC_conditioning
 from utils import curvature, curvature2, fake_curvature, multi_curvature
 
 import numpy as np
+import pandas as pd
 import scipy.constants as spc
-import scipy.io as spio
 import matplotlib.pyplot as plt
 
-# Simulation
+# Simulation parameters
+Tm_min_deg = -50
+Tm_max_deg = 150
+T_base_deg = 25
+N_pts = 101
 diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350)
 diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93)
 diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160)
-# ntc_B57703M_10k = NTC(R0=10e3, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=333, Beta=3988)
 ntc_B57703M_10k = NTC(R0=10e3, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=333, Table="../data/temperature_data.csv")
-mysim = NTC_simulation(3.3, 4, diode_BC817, ntc_B57703M_10k, name="BC817")
-mychar = NTC_characterization(ntc_B57703M_10k)
+
+meta = pd.DataFrame(
+    columns=["name", "sim_type", "ntc", "diode", "Tm_min", "Tm_max", "Tamb_diode", "V_bias", "N_diodes", "ntc_selfheat", "diode_selfheat", "N_pts"],
+    data = [
+        ["Diode divider, no self-heating, 4 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, False, False, N_pts],
+        ["Diode divider, self-heating, 4 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, True, True, N_pts],
+        ["Diode divider, no self-heating, 1 diode", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1, False, False, N_pts],
+        ["Diode divider, self-heating, 1 diode", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1, True, True, N_pts]
+        ])
+
+N_sim = len(meta)
+
+# Batch simulation
+res = []
+for index, row in meta.iterrows():
+    print(f"Simulation {index+1:2d}/{N_sim:2d}: {row['name']}")
+    mysim = NTC_conditioning(row)
+    data = mysim.simulate()
+    res.append(data)
+
+# Results
+plt.figure(2)
+plt.plot(res[0]['Tm_deg'], res[0]['Vx'], label=meta['name'][0])
+plt.plot(res[1]['Tm_deg'], res[1]['Vx'], label=meta['name'][1])
+plt.plot(res[2]['Tm_deg'], res[2]['Vx'], label=meta['name'][2])
+plt.plot(res[3]['Tm_deg'], res[3]['Vx'], label=meta['name'][3])
+plt.xlabel('Measured temperature (°C)')
+plt.ylabel('Output voltage (V)')
+plt.legend()
+plt.grid()
+plt.show(block=False)
+
 Tx, Tx_deg = mysim.get_temperatures()
-v_out = np.empty((mysim.N_sim, 4))
+v_out = np.empty((mysim.N_pts, 4))
 i_ntc = np.empty_like(v_out)
 T_ntc = np.empty_like(v_out)
 T_diode = np.empty_like(v_out)
@@ -31,40 +63,6 @@ v_out[:,2], i_ntc[:,2], Rx[:,2], g[:,2] = mysim.analysis_ideal_diode()
 v_out[:,3], i_ntc[:,3], Rx[:,3], g[:,3] = mysim.analysis_divider()
 asd = mysim.g_cal[0] + (mysim.g_cal[1] - mysim.g_cal[0]) * (mysim.v_cal[0] - v_out[:,1])/(mysim.v_cal[0] - mysim.v_cal[1])
 qwe = np.polyfit(asd, g[:,1], 3)
-# v_n, i_n, R_n, T_n = mychar.simulate(400)
-# v_m, i_m, R_m, I_m, V_m = mychar.analyze(400)
-# v_a, i_a, R_a, T_a = mychar.attempt(400)
-
-data = spio.loadmat('../data/asdf.mat')
-Ron_min = max(min(data['Ron'][:,0]), min(data['Ron'][:,3]))
-Ron_max = min(max(data['Ron'][:,0]), max(data['Ron'][:,3]))
-rons = np.linspace(Ron_min, Ron_max, 1001)
-Ts_ref = np.interp(rons, data['Ron'][:,3], data['T'][:,3])
-Ts_out = np.interp(rons, data['Ron'][:,0], data['T'][:,0])
-T_rms_error = np.sqrt(np.mean((Ts_ref - Ts_out)**2))
-print('RMS error: ', T_rms_error)
-
-
-plt.figure(8)
-plt.gcf().set_size_inches(4, 3)
-plt.plot(data['T'][:,(0, 3)], 1e3*data['Ron'][:,(0, 3)], label=['proposed sensing', 'thermal chamber'])
-plt.xlabel('Junction temperature ($^{\circ}C$)')
-plt.ylabel('On-state resistance ($m\Omega$)')
-plt.legend()
-plt.grid()
-plt.savefig('ron.pdf', bbox_inches='tight')
-plt.show(block=False)
-
-plt.figure(9)
-plt.gcf().set_size_inches(4, 3)
-plt.plot(Ts_ref, Ts_out, '-', label='experimental data')
-plt.plot(Ts_ref, Ts_ref, '--', label='ideal reference')
-plt.xlabel('Ambient temperature ($^{\circ}C$)')
-plt.ylabel('Sensed temperature ($^{\circ}C$)')
-plt.legend()
-plt.grid()
-plt.savefig('temp_comparison.pdf', bbox_inches='tight')
-plt.show(block=False)
 
 # Results
 plt.figure(1)
@@ -83,18 +81,15 @@ plt.grid()
 plt.show(block=False)
 
 plt.figure(3)
-plt.gcf().set_size_inches(4, 3)
 plt.plot(Tx_deg, 1e3*(T_ntc[:,1] - Tx), label='NTC')
 plt.plot(Tx_deg, 1e3*(T_diode[:,1] - mysim.T_base), label='BJT')
 plt.xlabel('Measured temperature (°C)')
 plt.ylabel('Component overtemperature (mK)')
 plt.legend()
 plt.grid()
-plt.savefig('overtemp_N6.pdf', bbox_inches='tight')
 plt.show(block=False)
 
 plt.figure(4)
-# plt.plot(v_out[0:-1,:], fake_curvature(v_out, 1/Tx[:,np.newaxis]), label=['ideal diode (sim)', 'divider (sim)', 'ideal diode (model)', 'divider (model)'])
 plt.plot(v_out, multi_curvature(v_out, 1/Tx), label=['ideal diode (sim)', 'divider (sim)', 'ideal diode (model)', 'divider (model)'])
 plt.xlabel('Output voltage (V)')
 plt.ylabel('Curvature')
@@ -120,48 +115,12 @@ plt.grid()
 plt.show(block=False)
 
 plt.figure(7)
-plt.gcf().set_size_inches(4, 3)
 plt.plot(v_out[:,1], g[:,1], label='simulation')
 plt.plot(v_out[:,1], asd, label='simplified')
 plt.xlabel('Output voltage $v_x$ (V)')
 plt.ylabel('Normalized log resistance $g$ (1)')
 plt.legend()
 plt.grid()
-plt.savefig('characteristics_N1.pdf', bbox_inches='tight')
 plt.show(block=True)
-
-'''
-plt.figure(5)
-plt.subplot(3, 1, 1)
-plt.loglog(i_n * 1e3, v_n)
-plt.loglog(i_m * 1e3, v_m)
-plt.loglog(I_m * 1e3, V_m, 'x')
-plt.loglog(i_a * 1e3, v_a)
-plt.xlabel('Test current (mA)')
-plt.ylabel('NTC voltage (V)')
-plt.grid()
-plt.subplot(3, 1, 2)
-plt.loglog(i_n * 1e3, T_n)
-plt.xlabel('Test current (mA)')
-plt.ylabel('NTC temperature (K)')
-plt.grid()
-plt.subplot(3, 1, 3)
-plt.loglog(i_n * 1e3, R_n)
-plt.loglog(i_n * 1e3, ntc_B57703M_10k.r_value(400) * np.ones_like(i_n))
-plt.loglog(i_n * 1e3, ntc_B57703M_10k.r_value(1e6) * np.ones_like(i_n))
-plt.xlabel('Test current (mA)')
-plt.ylabel('NTC resistance (ohm)')
-plt.grid()
-plt.show(block=False)
-
-x = np.log(i_n)
-y = np.log(v_n)
-y = np.diff(y) / np.diff(x)
-x = x[0:-1]
-plt.figure(6)
-plt.plot(x, y)
-plt.show(block=True)
-'''
 
 print('Ciao')
-print(qwe)
