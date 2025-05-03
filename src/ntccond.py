@@ -22,6 +22,8 @@ class NTC_conditioning:
         self.ntc = conf['ntc']
         self.ntc_selfheat = conf['ntc_selfheat']
         self.diode_selfheat = conf['diode_selfheat']
+        self.T_cal_A = spc.convert_temperature(conf['T_A'], 'Celsius', 'Kelvin')
+        self.T_cal_B = spc.convert_temperature(conf['T_B'], 'Celsius', 'Kelvin')
         self.T_base = spc.convert_temperature(self.T_base_deg, 'Celsius', 'Kelvin')
     def simulate(self):
         data = pd.DataFrame()
@@ -31,13 +33,21 @@ class NTC_conditioning:
         data['Tm_deg'] = spc.convert_temperature(Tm, 'Kelvin', 'Celsius')
         match self.sim_type:
             case "diode_divider_sim":
+                self.calibrate()
                 data['Vx'], data['Ix'], data['T_ntc'], data['T_diode'], data['Rx'], data['g'] = self.sim_diode_divider(Tm)
+                data['g_est'] = self.approx_diode_divider(data['Vx'])
             case _:
                 raise ValueError("Unimplemented NTC conditioning simulation type requested")
         return data
     def calibrate(self):
-        for ii_rcal in range(len(self.R_cal)):
-            self.v_cal[ii_rcal], *_ = self.sim_divider(Resistor_selfheat=True, Diode_selfheat=True, res=Resistor(R0=self.R_cal[ii_rcal]), temp=self.T_base)
+        T_cal = np.array([self.T_cal_A, self.T_cal_B])
+        v_cal, _, _, _, R_cal, g_cal = self.sim_diode_divider(T_cal)
+        self.v_A = v_cal[0]
+        self.v_B = v_cal[1]
+        self.g_A = g_cal[0]
+        self.g_B = g_cal[1]
+        self.R_A = R_cal[0]
+        self.R_B = R_cal[1]
     def get_temperatures(self):
         return (self.Tm, spc.convert_temperature(self.Tm, 'Kelvin', 'Celsius'))
     def analysis_ideal_diode(self):
@@ -87,3 +97,6 @@ class NTC_conditioning:
         Rx = self.ntc.r_value(T_res)
         g = np.log(Rx/self.ntc.par['R0'])
         return (vx, ix, T_res, T_diode, Rx, g)
+    def approx_diode_divider(self, vx):
+        g_est = self.g_A + (self.g_B - self.g_A) * (self.v_A - vx)/(self.v_A - self.v_B)
+        return g_est
