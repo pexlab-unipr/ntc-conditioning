@@ -22,10 +22,12 @@ ntc_B57703M_10k = NTC(R0=10e3, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin
 meta = pd.DataFrame(
     columns=["name", "sim_type", "ntc", "diode", "Tm_min", "Tm_max", "Tamb_diode", "V_bias", "N_diodes", "ntc_selfheat", "diode_selfheat", "T_A", "T_B", "N_pts"],
     data = [
-        ["Diode divider, no self-heating, 4 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, False, False, 15, 140, N_pts],
-        ["Diode divider, self-heating, 4 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, True, True, 15, 140, N_pts],
         ["Diode divider, no self-heating, 1 diode", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1, False, False, 15, 140, N_pts],
         ["Diode divider, self-heating, 1 diode", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1, True, True, 15, 140, N_pts],
+        ["Diode divider, no self-heating, 4 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, False, False, 15, 140, N_pts],
+        ["Diode divider, self-heating, 4 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, True, True, 15, 140, N_pts],
+        ["Diode divider, no self-heating, 6 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6, False, False, 15, 140, N_pts],
+        ["Diode divider, self-heating, 6 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6, True, True, 15, 140, N_pts],
         ["Diode divider, self-heating, 4 diodes, Td = 20°C", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, 20, 3.3, 4, True, True, 15, 140, N_pts],
         ["Diode divider, self-heating, 4 diodes, Td = 60°C", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, 60, 3.3, 4, True, True, 15, 140, N_pts],
         ["Diode divider, self-heating, 4 diodes, Td = 100°C", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, 100, 3.3, 4, True, True, 15, 140, N_pts]
@@ -47,6 +49,8 @@ plt.plot(res[0]['Tm_deg'], res[0]['Vx'], label=meta['name'][0])
 plt.plot(res[1]['Tm_deg'], res[1]['Vx'], label=meta['name'][1])
 plt.plot(res[2]['Tm_deg'], res[2]['Vx'], label=meta['name'][2])
 plt.plot(res[3]['Tm_deg'], res[3]['Vx'], label=meta['name'][3])
+plt.plot(res[4]['Tm_deg'], res[4]['Vx'], label=meta['name'][4])
+plt.plot(res[5]['Tm_deg'], res[5]['Vx'], label=meta['name'][5])
 plt.xlabel('Measured temperature (°C)')
 plt.ylabel('Output voltage (V)')
 plt.legend()
@@ -58,6 +62,8 @@ plt.plot(res[0]['g_est'], res[0]['g'], label=meta['name'][0])
 plt.plot(res[1]['g_est'], res[1]['g'], label=meta['name'][1])
 plt.plot(res[2]['g_est'], res[2]['g'], label=meta['name'][2])
 plt.plot(res[3]['g_est'], res[3]['g'], label=meta['name'][3])
+plt.plot(res[4]['g_est'], res[4]['g'], label=meta['name'][4])
+plt.plot(res[5]['g_est'], res[5]['g'], label=meta['name'][5])
 plt.xlabel('Estimated log resistance (1)')
 plt.ylabel('Real log resistance (1)')
 plt.legend()
@@ -65,11 +71,21 @@ plt.grid()
 plt.show(block=False)
 
 plt.figure(4)
-plt.plot(res[4]['g_est'], res[4]['g'], label=meta['name'][4])
-plt.plot(res[5]['g_est'], res[5]['g'], label=meta['name'][5])
 plt.plot(res[6]['g_est'], res[6]['g'], label=meta['name'][6])
+plt.plot(res[7]['g_est'], res[7]['g'], label=meta['name'][7])
+plt.plot(res[8]['g_est'], res[8]['g'], label=meta['name'][8])
 plt.xlabel('Estimated log resistance (1)')
 plt.ylabel('Real log resistance (1)')
+plt.legend()
+plt.grid()
+plt.show(block=False)
+
+plt.figure(5)
+plt.plot(res[1]['Tm_deg'], res[1]['Vx'], label=meta['name'][1])
+plt.plot(res[3]['Tm_deg'], res[3]['Vx'], label=meta['name'][3])
+plt.plot(res[5]['Tm_deg'], res[5]['Vx'], label=meta['name'][5])
+plt.xlabel('Measured temperature (°C)')
+plt.ylabel('Output voltage (V)')
 plt.legend()
 plt.grid()
 plt.show(block=False)
