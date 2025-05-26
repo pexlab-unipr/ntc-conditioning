@@ -36,6 +36,8 @@ class NTC_conditioning:
                 self.calibrate()
                 data['Vx'], data['Ix'], data['T_ntc'], data['T_diode'], data['Rx'], data['g'] = self.sim_diode_divider(Tm)
                 data['g_est'] = self.approx_diode_divider(data['Vx'])
+            case "resistive_divider_sim":
+                data['Vx'], data['Ix'], data['T_ntc'], data['Rx'], data['g'] = self.sim_resistive_divider(Tm)
             case _:
                 raise ValueError("Unimplemented NTC conditioning simulation type requested")
         return data
@@ -97,6 +99,14 @@ class NTC_conditioning:
         Rx = self.ntc.r_value(T_res)
         g = np.log(Rx/self.ntc.par['R0'])
         return (vx, ix, T_res, T_diode, Rx, g)
+    def sim_resistive_divider(self, Tm):
+        # Resistive voltage divider
+        vx = self.V_bias * self.ntc.par['R0']/(self.ntc.r_value(Tm)*self.ntc.par['R0']/(self.ntc.r_value(Tm) + self.ntc.par['R0']) + self.ntc.par['R0'])
+        ix = self.ntc.g_model(vx, Tm)
+        T_res = Tm
+        Rx = self.ntc.r_value(Tm)
+        g = np.log(Rx/self.ntc.par['R0'])
+        return (vx, ix, T_res, Rx, g)
     def approx_diode_divider(self, vx):
         g_est = self.g_A + (self.g_B - self.g_A) * (self.v_A - vx)/(self.v_A - self.v_B)
         return g_est

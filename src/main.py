@@ -30,7 +30,8 @@ meta = pd.DataFrame(
         ["Diode divider, self-heating, 6 diodes", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6, True, True, 15, 140, N_pts],
         ["Diode divider, self-heating, 4 diodes, Td = 20°C", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, 20, 3.3, 4, True, True, 15, 140, N_pts],
         ["Diode divider, self-heating, 4 diodes, Td = 60°C", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, 60, 3.3, 4, True, True, 15, 140, N_pts],
-        ["Diode divider, self-heating, 4 diodes, Td = 100°C", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, 100, 3.3, 4, True, True, 15, 140, N_pts]
+        ["Diode divider, self-heating, 4 diodes, Td = 100°C", "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, 100, 3.3, 4, True, True, 15, 140, N_pts],
+        ["Resistive divider, no self-heating", "resistive_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6, True, True, 15, 140, N_pts]
         ])
 
 N_sim = len(meta)
@@ -84,6 +85,7 @@ plt.figure(5)
 plt.plot(res[1]['Tm_deg'], res[1]['Vx'], label=meta['name'][1])
 plt.plot(res[3]['Tm_deg'], res[3]['Vx'], label=meta['name'][3])
 plt.plot(res[5]['Tm_deg'], res[5]['Vx'], label=meta['name'][5])
+plt.plot(res[9]['Tm_deg'], res[9]['Vx'], label=meta['name'][9])
 plt.xlabel('Measured temperature (°C)')
 plt.ylabel('Output voltage (V)')
 plt.legend()
