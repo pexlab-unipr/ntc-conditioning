@@ -34,7 +34,7 @@ class NTC_conditioning:
         match self.sim_type:
             case "diode_divider_sim":
                 self.calibrate()
-                data['Vx'], data['Ix'], data['T_ntc'], data['T_diode'], data['Rx'], data['g'] = self.sim_diode_divider(Tm)
+                data['Vx'], data['Ix'], data['T_ntc'], data['T_diode'], data['Rx'], data['g'], data['T_diode0'] = self.sim_diode_divider(Tm)
                 data['g_est'] = self.approx_diode_divider(data['Vx'])
             case "resistive_divider_sim":
                 data['Vx'], data['Ix'], data['T_ntc'], data['Rx'], data['g'] = self.sim_resistive_divider(Tm)
@@ -43,7 +43,7 @@ class NTC_conditioning:
         return data
     def calibrate(self):
         T_cal = np.array([self.T_cal_A, self.T_cal_B])
-        v_cal, _, _, _, R_cal, g_cal = self.sim_diode_divider(T_cal)
+        v_cal, _, _, _, R_cal, g_cal, _ = self.sim_diode_divider(T_cal)
         self.v_A = v_cal[0]
         self.v_B = v_cal[1]
         self.g_A = g_cal[0]
@@ -98,10 +98,11 @@ class NTC_conditioning:
         ix = self.diode.g_model(vx/self.N_j, T_diode)
         Rx = self.ntc.r_value(T_res)
         g = np.log(Rx/self.ntc.par['R0'])
-        return (vx, ix, T_res, T_diode, Rx, g)
+        T_diode0 = self.T_base * np.ones_like(T_res)
+        return (vx, ix, T_res, T_diode, Rx, g, T_diode0)
     def sim_resistive_divider(self, Tm):
         # Resistive voltage divider
-        vx = self.V_bias * self.ntc.par['R0']/(self.ntc.r_value(Tm)*self.ntc.par['R0']/(self.ntc.r_value(Tm) + self.ntc.par['R0']) + self.ntc.par['R0'])
+        vx = self.V_bias * self.ntc.par['R0']/(self.ntc.r_value(Tm) + self.ntc.par['R0'])
         ix = self.ntc.g_model(vx, Tm)
         T_res = Tm
         Rx = self.ntc.r_value(Tm)
