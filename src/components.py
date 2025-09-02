@@ -96,6 +96,9 @@ class NTC(Resistor):
             data['recT'] = 1/data['T']
             data['g'] = np.log(data['r'])
             # TODO consider the range of the table on which to compute the coefficients
+            # For now, just save the temperature limits, for later inversion
+            self.par['Tmin'] = np.min(data['T'])
+            self.par['Tmax'] = np.max(data['T'])
             # Determine Beta model coefficients
             par = npp.polyfit(data['recT'] - 1/self.par['T0'], data['g'], 1)
             self.par['Beta'] = par[1]
@@ -109,7 +112,7 @@ class NTC(Resistor):
             plt.plot(data['T_deg'], data['g'], label="Datasheet")
             plt.plot(data['T_deg'], np.log(self.r_value(data['T'], model="beta_value")/self.par['R0']), label="Beta model")
             plt.plot(data['T_deg'], np.log(self.r_value(data['T'], model="polynomial")/self.par['R0']), label="Polynomial model")
-            plt.xlabel('Temperature ($^{\circ}C$)')
+            plt.xlabel('Temperature (°C)')
             plt.ylabel('Normalized log resistance (1)')
             plt.legend()
             plt.grid()
@@ -132,5 +135,35 @@ class NTC(Resistor):
                 return np.exp((y - x/2)**(1/3) - (y + x/2)**(1/3))
             case "polynomial":
                 return self.par['R0'] * np.exp(npp.polyval(1/Tx, self.par['DCBA']))
+            case _:
+                raise ValueError("Unimplemented NTC model requested")
+    def T_from_logR(self, logR, model="default"):
+        # Compute temperature from g = logR = log(R/R0)
+        model = self.model_default(model)
+        match model:
+            case "beta_value":
+                return 1/(1/self.par['T0'] + logR/self.par['Beta'])
+            case "steinhart_hart":
+                raise NotImplementedError("Inverse Steinhart-Hart not implemented")
+            case "polynomial":
+                T_est = np.empty_like(logR)
+                for ii in range(len(logR)):
+                    # Solve 1/T from polynomial equation
+                    # logR = D + C*(1/T) + B*(1/T)^2 + A*(1/T)^3
+                    # A*(1/T)^3 + B*(1/T)^2 + C*(1/T) + (D - logR) = 0
+                    # Coefficients of the polynomial in 1/T
+                    p = self.par['DCBA'].copy()
+                    p[0] -= logR[ii]
+                    roots = npp.Polynomial(p).roots()
+                    # Find the only suitable solution
+                    Ts = 1/roots # solving for 1/T
+                    Ts = Ts[np.isreal(Ts)].real # only real temperatures
+                    Ts = Ts[(Ts > self.par['Tmin']-10) & (Ts < self.par['Tmax']+10)] # only temperature in model range
+                    if len(Ts) != 1:
+                        T_est[ii] = np.nan
+                        #raise ValueError("Multiple or no real roots found for polynomial inversion")
+                    else:
+                        T_est[ii] = Ts
+                return T_est
             case _:
                 raise ValueError("Unimplemented NTC model requested")
