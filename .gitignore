@@ -1,2 +1,4 @@
 *.pdf
 src/__pycache__/
+src/results/
+Dati_NTC/

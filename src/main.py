@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.constants as spc
 import matplotlib.pyplot as plt
+import os
 
 # Simulation parameters
 Tm_min_deg = -50
@@ -18,7 +19,9 @@ diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350)
 diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93)
 diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160)
 ntc_B57703M_10k = NTC(R0=10e3, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=333, Table="../data/temperature_data.csv")
+Out_folder = "./results/"
 
+# Simulation configuration
 meta = pd.DataFrame(
     columns=["name", "sim_type", "ntc", "diode", "Tm_min", "Tm_max", "Tamb_diode", "V_bias", "N_diodes", "ntc_selfheat", "diode_selfheat", "T_A", "T_B", "N_pts"],
     data = [
@@ -101,7 +104,7 @@ plt.xlabel('Measured temperature (°C)')
 plt.ylabel('NTC overtemperature (K)')
 plt.legend()
 plt.grid()
-plt.savefig('NTC_overtemperature.pdf', bbox_inches='tight')
+plt.savefig(os.path.join(Out_folder, 'NTC_overtemperature.pdf'), bbox_inches='tight')
 plt.show(block=False)
 
 plt.figure(7)
@@ -113,7 +116,7 @@ plt.xlabel('Measured temperature (°C)')
 plt.ylabel('BJT overtemperature (K)')
 plt.legend()
 plt.grid()
-plt.savefig('BJT_overtemperature.pdf', bbox_inches='tight')
+plt.savefig(os.path.join(Out_folder, 'BJT_overtemperature.pdf'), bbox_inches='tight')
 plt.show(block=False)
 
 plt.figure(8)
@@ -125,7 +128,7 @@ plt.xlabel('Output voltage (V)')
 plt.ylabel('Normalized log resistance g (1)')
 plt.legend()
 plt.grid()
-plt.savefig('linearity.pdf', bbox_inches='tight')
+plt.savefig(os.path.join(Out_folder, 'linearity.pdf'), bbox_inches='tight')
 plt.show(block=False)
 
 plt.figure(9)
@@ -137,7 +140,7 @@ plt.xlabel('Measured temperature (°C)')
 plt.ylabel('Output voltage (V)')
 plt.legend()
 plt.grid()
-plt.savefig('diode_temp_automotive.pdf', bbox_inches='tight')
+plt.savefig(os.path.join(Out_folder, 'diode_temp_automotive.pdf'), bbox_inches='tight')
 plt.show(block=False)
 
 plt.figure(10)
@@ -149,7 +152,7 @@ plt.xlabel('Measured temperature (°C)')
 plt.ylabel('Estimated log resistance (1)')
 plt.legend()
 plt.grid()
-plt.savefig('diode_temp_automotive_calib.pdf', bbox_inches='tight')
+plt.savefig(os.path.join(Out_folder, 'diode_temp_automotive_calib.pdf'), bbox_inches='tight')
 plt.show(block=False)
 
 plt.figure(11)
@@ -161,8 +164,8 @@ plt.xlabel('Measured temperature (°C)')
 plt.ylabel('Conditioning error (°C)')
 plt.legend()
 plt.grid()
-plt.savefig('error_automotive_range.pdf', bbox_inches='tight')
-plt.savefig('error_automotive_range.png', bbox_inches='tight', dpi=600)
+plt.savefig(os.path.join(Out_folder, 'error_automotive_range.pdf'), bbox_inches='tight')
+plt.savefig(os.path.join(Out_folder, 'error_automotive_range.png'), bbox_inches='tight', dpi=600)
 plt.show(block=True)
 
 print('Ciao')
