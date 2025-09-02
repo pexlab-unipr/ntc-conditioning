@@ -36,6 +36,7 @@ class NTC_conditioning:
                 self.calibrate()
                 data['Vx'], data['Ix'], data['T_ntc'], data['T_diode'], data['Rx'], data['g'], data['T_diode0'] = self.sim_diode_divider(Tm)
                 data['g_est'] = self.approx_diode_divider(data['Vx'])
+                data['Tm_est_deg'] = spc.convert_temperature(self.ntc.T_from_logR(data['g_est'], model="polynomial"), 'Kelvin', 'Celsius')
             case "resistive_divider_sim":
                 data['Vx'], data['Ix'], data['T_ntc'], data['Rx'], data['g'] = self.sim_resistive_divider(Tm)
             case _:
