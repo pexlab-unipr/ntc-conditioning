@@ -67,11 +67,6 @@ class NTC_conditioning:
         Vx, _, _, _, _, g, _ = self.sim_diode_divider(Tm)
         g_est = self.approx_diode_divider(Vx)
         self.T_base = T_base
-        #
-        plt.figure(15)
-        plt.plot(Tm - 273.15, Vx)
-        plt.grid()
-        plt.show(block=True)
         # Fit a polynomial to the compensation error
         par = npp.polyfit(g_est, g, 3)
         self.comp_par = par
