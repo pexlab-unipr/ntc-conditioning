@@ -57,6 +57,8 @@ class NTC_conditioning:
                 data['g_est'] = self.approx_diode_divider(vx) # different dimension if noise analysis
                 data['g_est'] = self.compensate_logr(data['g_est'])
                 data['Tm_est_deg'] = spc.convert_temperature(self.ntc.T_from_logR(data['g_est'], model="polynomial"), 'Kelvin', 'Celsius')
+                if self.do_noise_analysis:
+                    data['uncertainty'] = np.std(data['Tm_est_deg'] - data['Tm_deg'], axis=1)
             case "resistive_divider_sim":
                 data['Vx'], data['Ix'], data['T_ntc'], data['Rx'], data['g'] = self.sim_resistive_divider(Tm)
             case _:
