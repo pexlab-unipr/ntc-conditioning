@@ -1,6 +1,6 @@
 # NTC overall simulation and study
 
-from components import Diode, NTC
+from components import Diode, NTC, ADC
 from ntccond import NTC_conditioning
 from utils import curvature, curvature2, fake_curvature, multi_curvature
 
@@ -19,24 +19,35 @@ diode_1N4148 = Diode(Is =  2.7e-9, Eta = 1.8, Rth = 350)
 diode_1N4007 = Diode(Is = 500e-12, Eta = 1.5, Rth =  93)
 diode_BC817  = Diode(Is =  20e-15, Eta = 1.0, Rth = 160)
 ntc_B57703M_10k = NTC(R0=10e3, T0=spc.convert_temperature(25, 'Celsius', 'Kelvin'), Rth=333, Table="../data/temperature_data.csv")
+adc_12bit = ADC(bits=12, Vref=3.3, enob=9)
 Out_folder = "./results/"
+
+asd = ADC(bits=12, Vref=3.3, enob=9)
+vx = 1.65*np.ones(1001)
+vout = asd.allpass(vx)
+plt.figure(1)
+plt.hist(vout - vx, bins=50)
+plt.xlabel('Error (V)')
+plt.ylabel('Counts (1)')
+plt.grid()
+plt.show(block=False)
 
 # Simulation configuration
 meta = pd.DataFrame(
-    columns=["name", "sim_type", "ntc", "diode", "Tm_min", "Tm_max", "Tamb_diode", "V_bias", "N_diodes", "ntc_selfheat", "diode_selfheat", "T_calib", "do_compensate", "T_comp", "T_comp_calib", "do_optimize", "N_pts"],
+    columns=["name", "sim_type", "ntc", "diode", "adc", "Tm_min", "Tm_max", "Tamb_diode", "V_bias", "N_diodes", "ntc_selfheat", "diode_selfheat", "T_calib", "do_compensate", "T_comp", "T_comp_calib", "do_optimize", "do_noise_analysis", "noise_runs", "N_pts"],
     data = [
-        [                       "Diode divider, no self-heating, 1 diode",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1, False, False, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [                          "Diode divider, self-heating, 1 diode",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [                      "Diode divider, no self-heating, 4 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, False, False, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [                         "Diode divider, self-heating, 4 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [                      "Diode divider, no self-heating, 6 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6, False, False, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [                         "Diode divider, self-heating, 6 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [             "Diode divider, self-heating, 4 diodes, Td = -40°C",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg,        -40, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [              "Diode divider, self-heating, 4 diodes, Td = 25°C",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg,         25, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [             "Diode divider, self-heating, 4 diodes, Td = 105°C",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg,        105, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [                            "Resistive divider, no self-heating", "resistive_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, N_pts],
-        [ "Diode divider, self-heating, 4 diodes, Td = 25°C, compensated",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg,         25, 3.3, 4,  True,  True, (15, 140),  True, 25, (-20, 30, 80, 130), False, N_pts],
-        [   "Diode divider, self-heating, 4 diodes, Td = 25°C, optimized",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, Tm_min_deg, Tm_max_deg,         25, 3.3, 4,  True,  True, (15, 140), False, 25, (-20, 30, 80, 130),  True, N_pts]
+        [                       "Diode divider, no self-heating, 1 diode",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1, False, False, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [                          "Diode divider, self-heating, 1 diode",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 1,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [                      "Diode divider, no self-heating, 4 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4, False, False, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [                         "Diode divider, self-heating, 4 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [                      "Diode divider, no self-heating, 6 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6, False, False, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [                         "Diode divider, self-heating, 6 diodes",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [             "Diode divider, self-heating, 4 diodes, Td = -40°C",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg,        -40, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [              "Diode divider, self-heating, 4 diodes, Td = 25°C",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg,         25, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [             "Diode divider, self-heating, 4 diodes, Td = 105°C",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg,        105, 3.3, 4,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [                            "Resistive divider, no self-heating", "resistive_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg, T_base_deg, 3.3, 6,  True,  True, (15, 140), False, 35, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [ "Diode divider, self-heating, 4 diodes, Td = 25°C, compensated",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg,         25, 3.3, 4,  True,  True, (15, 140),  True, 25, (-20, 30, 80, 130), False, False, 0, N_pts],
+        [   "Diode divider, self-heating, 4 diodes, Td = 25°C, optimized",     "diode_divider_sim", ntc_B57703M_10k, diode_BC817, adc_12bit, Tm_min_deg, Tm_max_deg,         25, 3.3, 4,  True,  True, (15, 140), False, 25, (-20, 30, 80, 130),  True, False, 0, N_pts]
         ])
 
 N_sim = len(meta)

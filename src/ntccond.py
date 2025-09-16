@@ -23,10 +23,13 @@ class NTC_conditioning:
         self.N_j = conf['N_diodes']
         self.diode = conf['diode']
         self.ntc = conf['ntc']
+        self.adc = conf['adc']
         self.ntc_selfheat = conf['ntc_selfheat']
         self.diode_selfheat = conf['diode_selfheat']
         self.do_compensate = conf['do_compensate']
         self.do_optimize = conf['do_optimize']
+        self.do_noise_analysis = conf['do_noise_analysis']
+        self.noise_runs = conf['noise_runs']
         self.T_calib = spc.convert_temperature(np.array(conf['T_calib'], dtype='float64'), 'Celsius', 'Kelvin')
         self.T_comp_calib = spc.convert_temperature(np.array(conf['T_comp_calib'], dtype='float64'), 'Celsius', 'Kelvin')
         self.T_base = spc.convert_temperature(conf['Tamb_diode'], 'Celsius', 'Kelvin')
@@ -47,7 +50,11 @@ class NTC_conditioning:
                 if self.do_compensate:
                     self.update_compensation(Tm)
                 data['Vx'], data['Ix'], data['T_ntc'], data['T_diode'], data['Rx'], data['g'], data['T_diode0'] = self.sim_diode_divider(Tm)
-                data['g_est'] = self.approx_diode_divider(data['Vx'])
+                vx = data['Vx']
+                if self.do_noise_analysis:
+                    vx = np.tile(vx, (self.noise_runs, 1)).T # replicate for noise analysis
+                    vx = self.adc.allpass(vx) # add measurement noise
+                data['g_est'] = self.approx_diode_divider(vx) # different dimension if noise analysis
                 data['g_est'] = self.compensate_logr(data['g_est'])
                 data['Tm_est_deg'] = spc.convert_temperature(self.ntc.T_from_logR(data['g_est'], model="polynomial"), 'Kelvin', 'Celsius')
             case "resistive_divider_sim":
