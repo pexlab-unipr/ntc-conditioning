@@ -54,11 +54,13 @@ class NTC_conditioning:
                 if self.do_noise_analysis:
                     vx = np.tile(vx, (self.noise_runs, 1)).T # replicate for noise analysis
                     vx = self.adc.allpass(vx) # add measurement noise
-                data['g_est'] = self.approx_diode_divider(vx) # different dimension if noise analysis
-                data['g_est'] = self.compensate_logr(data['g_est'])
-                data['Tm_est_deg'] = spc.convert_temperature(self.ntc.T_from_logR(data['g_est'], model="polynomial"), 'Kelvin', 'Celsius')
-                if self.do_noise_analysis:
-                    data['uncertainty'] = np.std(data['Tm_est_deg'] - data['Tm_deg'], axis=1)
+                g_est = self.approx_diode_divider(vx) # different dimension if noise analysis
+                g_est = self.compensate_logr(g_est)
+                Tm_est_deg = spc.convert_temperature(self.ntc.T_from_logR(g_est, model="polynomial"), 'Kelvin', 'Celsius')
+                data['g_est'] = np.mean(g_est, axis=1) if self.do_noise_analysis else g_est
+                data['Tm_est_deg'] = np.mean(Tm_est_deg, axis=1) if self.do_noise_analysis else Tm_est_deg
+                Tm_deg = data['Tm_deg'].to_numpy()
+                data['uncertainty'] = np.std(Tm_est_deg - Tm_deg[:, np.newaxis], axis=1) if self.do_noise_analysis else np.zeros_like(data['Tm'])
             case "resistive_divider_sim":
                 data['Vx'], data['Ix'], data['T_ntc'], data['Rx'], data['g'] = self.sim_resistive_divider(Tm)
             case _:

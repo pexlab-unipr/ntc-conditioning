@@ -147,23 +147,24 @@ class NTC(Resistor):
                 raise NotImplementedError("Inverse Steinhart-Hart not implemented")
             case "polynomial":
                 T_est = np.empty_like(logR)
-                for ii in range(len(logR)):
+                for ii in range(logR.size):
                     # Solve 1/T from polynomial equation
                     # logR = D + C*(1/T) + B*(1/T)^2 + A*(1/T)^3
                     # A*(1/T)^3 + B*(1/T)^2 + C*(1/T) + (D - logR) = 0
                     # Coefficients of the polynomial in 1/T
                     p = self.par['DCBA'].copy()
-                    p[0] -= logR[ii]
+                    jj = ii if logR.ndim == 1 else np.unravel_index(ii, logR.shape, order='C')
+                    p[0] -= logR[jj]
                     roots = npp.Polynomial(p).roots()
                     # Find the only suitable solution
                     Ts = 1/roots # solving for 1/T
                     Ts = Ts[np.isreal(Ts)].real # only real temperatures
                     Ts = Ts[(Ts > self.par['Tmin']-10) & (Ts < self.par['Tmax']+10)] # only temperature in model range
                     if len(Ts) != 1:
-                        T_est[ii] = np.nan
+                        T_est[jj] = np.nan
                         #raise ValueError("Multiple or no real roots found for polynomial inversion")
                     else:
-                        T_est[ii] = Ts
+                        T_est[jj] = Ts
                 return T_est
             case _:
                 raise ValueError("Unimplemented NTC model requested")
@@ -186,7 +187,7 @@ class ADC:
         self.rng = np.random.default_rng(210789) # fixed seed for reproducibility
     def adc_model(self, vx):
         # Ideal ADC model: quantization only
-        vx = vx + self.rng.normal(0, self.par['noise_rms'], size=len(vx)) # add noise
+        vx = vx + self.rng.normal(0, self.par['noise_rms'], size=vx.shape) # add noise
         adc_code = np.round(vx/self.par['LSB'])
         adc_code = np.clip(adc_code, 0, 2**self.par['bits'] - 1)
         return adc_code
