@@ -153,18 +153,17 @@ class NTC(Resistor):
                     # A*(1/T)^3 + B*(1/T)^2 + C*(1/T) + (D - logR) = 0
                     # Coefficients of the polynomial in 1/T
                     p = self.par['DCBA'].copy()
-                    jj = ii if logR.ndim == 1 else np.unravel_index(ii, logR.shape, order='C')
-                    p[0] -= logR[jj]
+                    p[0] -= logR.ravel()[ii]
                     roots = npp.Polynomial(p).roots()
                     # Find the only suitable solution
                     Ts = 1/roots # solving for 1/T
                     Ts = Ts[np.isreal(Ts)].real # only real temperatures
                     Ts = Ts[(Ts > self.par['Tmin']-10) & (Ts < self.par['Tmax']+10)] # only temperature in model range
                     if len(Ts) != 1:
-                        T_est[jj] = np.nan
+                        T_est.ravel()[ii] = np.nan
                         #raise ValueError("Multiple or no real roots found for polynomial inversion")
                     else:
-                        T_est[jj] = Ts
+                        T_est.ravel()[ii] = Ts
                 return T_est
             case _:
                 raise ValueError("Unimplemented NTC model requested")

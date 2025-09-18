@@ -50,7 +50,7 @@ class NTC_conditioning:
                 if self.do_compensate:
                     self.update_compensation(Tm)
                 data['Vx'], data['Ix'], data['T_ntc'], data['T_diode'], data['Rx'], data['g'], data['T_diode0'] = self.sim_diode_divider(Tm)
-                vx = data['Vx']
+                vx = data['Vx'].to_numpy()
                 if self.do_noise_analysis:
                     vx = np.tile(vx, (self.noise_runs, 1)).T # replicate for noise analysis
                     vx = self.adc.allpass(vx) # add measurement noise
@@ -81,8 +81,8 @@ class NTC_conditioning:
         x_min = spc.convert_temperature(np.array((sim.T_min_deg, sim.T_min_deg), dtype='float64'), 'Celsius', 'Kelvin')
         x_max = spc.convert_temperature(np.array((sim.T_max_deg, sim.T_max_deg), dtype='float64'), 'Celsius', 'Kelvin')
         x0 = [x_min[0] + 20, x_max[0] - 20] # initial guess
-        bounds = (x_min, x_max)
-        res = spo.minimize(err_func, x0, method='BFGS', bounds=bounds)
+        # bounds = (x_min, x_max)
+        res = spo.minimize(err_func, x0, method='BFGS')
         self.T_calib = res.x
         return res
     

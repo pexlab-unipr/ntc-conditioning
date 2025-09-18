@@ -26,15 +26,8 @@ adc_16bit = ADC(bits=16, Vref=3.3, enob=13)
 adc_18bit = ADC(bits=18, Vref=3.3, enob=15)
 Out_folder = "./results/"
 
-asd = ADC(bits=12, Vref=3.3, enob=9)
-vx = 1.65*np.ones(1001)
-vout = asd.allpass(vx)
-plt.figure(1)
-plt.hist(vout - vx, bins=50)
-plt.xlabel('Error (V)')
-plt.ylabel('Counts (1)')
-plt.grid()
-plt.show(block=False)
+if not os.path.exists(Out_folder):
+    os.makedirs(Out_folder)
 
 # Simulation configuration
 meta = pd.DataFrame(
